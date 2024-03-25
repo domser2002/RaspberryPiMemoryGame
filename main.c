@@ -15,17 +15,22 @@
 #define SW3 10
 #define SW4 25
 #define GPIO_COUNT 8
+#define GPIO_IN_COUNT 4
+#define GPIO_OUT_COUNT 4
 
-typedef enum gpio_order_e {
+typedef enum gpio_in_order_e {
     SW1_pos = 0,
     SW2_pos,
     SW3_pos,
-    SW4_pos,
-    D1_pos,
+    SW4_pos
+} gpio_in_order_e;
+
+typedef enum gpio_out_order_e {
+    D1_pos = 0,
     D2_pos,
     D3_pos,
     D4_pos
-} gpio_order_e;
+} gpio_out_order_e;
 
 gpio_t* create_and_open(int line,int direction)
 {
@@ -44,53 +49,50 @@ gpio_t* create_and_open(int line,int direction)
     return gpio;
 }
 
-void init_gpios(gpio_t **gpios, int line_numbers[GPIO_COUNT], int directions[GPIO_COUNT])
+void init_gpios(gpio_t **gpios_in, gpio_t **gpios_out, int in_line_numbers[GPIO_IN_COUNT], int out_line_numbers[GPIO_OUT_COUNT])
 {
-    gpios = (gpio_t**)malloc(GPIO_COUNT*sizeof(gpio_t*));
-    for(int i=0;i<GPIO_COUNT;i++)
+    gpios_in = (gpio_t**)malloc(GPIO_IN_COUNT*sizeof(gpio_t*));
+    gpios_out = (gpio_t**)malloc(GPIO_OUT_COUNT*sizeof(gpio_t*));
+    for(int i=0;i<GPIO_IN_COUNT;i++)
     {
-        gpios[i] = create_and_open(line_numbers[i],directions[i]);
+        gpios_in[i] = create_and_open(in_line_numbers[i],GPIO_DIR_IN);
+    }
+    for(int i=0;i<GPIO_OUT_COUNT;i++)
+    {
+        gpios_out[i] = create_and_open(out_line_numbers[i],GPIO_DIR_OUT);
     }
 }
 
-void close_gpios(gpio_t **gpios)
+void close_gpios(gpio_t **gpios_in, gpio_t **gpios_out)
 {
-    for(int i=0;i<GPIO_COUNT;i++)
+    for(int i=0;i<GPIO_IN_COUNT;i++)
     {
-        gpio_close(gpios[i]);
-        gpio_free(gpios[i]);
+        gpio_close(gpios_in[i]);
+        gpio_free(gpios_in[i]);
     }
-    free(gpios);
+    free(gpios_in);
+    for(int i=0;i<GPIO_OUT_COUNT;i++)
+    {
+        gpio_close(gpios_out[i]);
+        gpio_free(gpios_out[i]);
+    }
+    free(gpios_out);
 }
 
-void init_line_numbers(int line_numbers[GPIO_COUNT])
+void init_out_line_numbers(int out_line_numbers[GPIO_OUT_COUNT])
 {
-    line_numbers[SW1_pos] = SW1;
-    line_numbers[SW2_pos] = SW2;
-    line_numbers[SW3_pos] = SW3;
-    line_numbers[SW4_pos] = SW4;
-    line_numbers[D1_pos] = D1;
-    line_numbers[D2_pos] = D2;
-    line_numbers[D3_pos] = D3;
-    line_numbers[D4_pos] = D4;
+    out_line_numbers[D1_pos] = D1;
+    out_line_numbers[D2_pos] = D2;
+    out_line_numbers[D3_pos] = D3;
+    out_line_numbers[D4_pos] = D4;
 }
 
-void init_directions(int directions[GPIO_COUNT])
+void init_in_line_numbers(int in_line_numbers[GPIO_IN_COUNT])
 {
-    directions[SW1_pos] = GPIO_DIR_IN;
-    directions[SW2_pos] = GPIO_DIR_IN;
-    directions[SW3_pos] = GPIO_DIR_IN;
-    directions[SW4_pos] = GPIO_DIR_IN;
-    directions[D1_pos] = GPIO_DIR_OUT;
-    directions[D2_pos] = GPIO_DIR_OUT;
-    directions[D3_pos] = GPIO_DIR_OUT;
-    directions[D4_pos] = GPIO_DIR_OUT;
-}
-
-void init_arrrays(int line_numbers[GPIO_COUNT],int directions[GPIO_COUNT])
-{
-    init_line_numbers(line_numbers);
-    init_directions(directions);
+    in_line_numbers[SW1_pos] = SW1;
+    in_line_numbers[SW2_pos] = SW2;
+    in_line_numbers[SW3_pos] = SW3;
+    in_line_numbers[SW4_pos] = SW4;
 }
 
 bool read_from_gpio(gpio_t *gpio)
@@ -119,8 +121,9 @@ void sleep_miliseconds(int miliseconds)
     nanosleep(&sleep_time,NULL);
 }
 
-void proceed_work(gpio_t **gpios,int directions[GPIO_COUNT])
+void proceed_work(gpio_t **gpios_in,gpio_t **gpios_out)
 {
+    int counters[GPIO_OUT_COUNT];
     bool value;
     int light_time = 500;
     int min_iterations = 30,max_iterations = 50,iterations;
@@ -128,27 +131,26 @@ void proceed_work(gpio_t **gpios,int directions[GPIO_COUNT])
     iterations = rand() % (max_iterations - min_iterations) + 1;
     for(int i=0;i<iterations;i++)
     {
-        do
-        {
-            gpio_number = rand() % GPIO_COUNT;
-        } while (directions[gpio_number] != GPIO_DIR_OUT);
-        write_to_gpio(gpios[gpio_number], true);
+        gpio_number = rand() % GPIO_OUT_COUNT;
+        write_to_gpio(gpios_out[gpio_number], true);
         sleep_miliseconds(light_time);
-        write_to_gpio(gpios[gpio_number], false);
+        write_to_gpio(gpios_out[gpio_number], false);
+        counters[gpio_number]++;
     }
 }
 
 int main(void) {
-    gpio_t **gpios;
-    int line_numbers[GPIO_COUNT];
-    int directions[GPIO_COUNT];
+    gpio_t **gpios_in, **gpios_out;
+    int in_line_numbers[GPIO_IN_COUNT];
+    int out_line_numbers[GPIO_OUT_COUNT];
 
-    init_arrrays(line_numbers,directions);
-    init_gpios(gpios,line_numbers,directions);
+    init_out_line_numbers(out_line_numbers);
+    init_in_line_numbers(in_line_numbers);
+    init_gpios(gpios_in, gpios_out, in_line_numbers, out_line_numbers);
 
-    proceed_work(gpios,directions);
+    proceed_work(gpios_in,gpios_out);
 
-    close_gpios(gpios);
+    close_gpios(gpios_in,gpios_out);
 
     return EXIT_SUCCESS;
 }
