@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <time.h>
 #include "gpio.h"
 
 #define GPIO "dev/gpiochip0"
@@ -30,6 +31,11 @@ gpio_t* create_and_open(int line,int direction)
 {
     gpio_t *gpio;
     gpio = gpio_new();
+    if(gpio == NULL)
+    {
+        fprintf(stderr,"gpio_new() \n");
+        exit(EXIT_FAILURE);
+    }
     if(gpio_open(gpio,GPIO,line,direction) < 0)
     {
         fprintf(stderr,"gpio_open(): %s\n", gpio_errmsg(gpio));
@@ -105,13 +111,30 @@ void write_to_gpio(gpio_t *gpio,bool value)
     }
 }
 
-void proceed_work(gpio_t **gpios)
+void sleep_miliseconds(int miliseconds)
+{
+    struct timespec sleep_time;
+    sleep_time.tv_sec = miliseconds / 1000;
+    sleep_time.tv_nsec = (miliseconds % 1000) * 1000 * 1000;
+    nanosleep(&sleep_time,NULL);
+}
+
+void proceed_work(gpio_t **gpios,int directions[GPIO_COUNT])
 {
     bool value;
-    while(1)
+    int light_time = 500;
+    int min_iterations = 30,max_iterations = 50,iterations;
+    int gpio_number;
+    iterations = rand() % (max_iterations - min_iterations) + 1;
+    for(int i=0;i<iterations;i++)
     {
-        value = read_from_gpio(gpios[SW1_pos]);
-        write_to_gpio(gpios[D4_pos], value);
+        do
+        {
+            gpio_number = rand() % GPIO_COUNT;
+        } while (directions[gpio_number] != GPIO_DIR_OUT);
+        write_to_gpio(gpios[gpio_number], true);
+        sleep_miliseconds(light_time);
+        write_to_gpio(gpios[gpio_number], false);
     }
 }
 
@@ -123,7 +146,7 @@ int main(void) {
     init_arrrays(line_numbers,directions);
     init_gpios(gpios,line_numbers,directions);
 
-    proceed_work(gpios);
+    proceed_work(gpios,directions);
 
     close_gpios(gpios);
 
