@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include "gpio.h"
+
 #define GPIO "dev/gpiochip0"
 #define D1 27
 #define D2 23
@@ -11,7 +13,7 @@
 #define SW2 17
 #define SW3 10
 #define SW4 25
-#include "gpio.h"
+#define GPIO_COUNT 8
 
 gpio_t* create_and_open(int line,int direction)
 {
@@ -25,41 +27,46 @@ gpio_t* create_and_open(int line,int direction)
     return gpio;
 }
 
+void init_gpios(gpio_t **gpios, int line_numbers[GPIO_COUNT], int directions[GPIO_COUNT])
+{
+    gpios = (gpio_t**)malloc(GPIO_COUNT*sizeof(gpio_t*));
+    for(int i=0;i<GPIO_COUNT;i++)
+    {
+        gpios[i] = create_and_open(line_numbers[i],directions[i]);
+    }
+}
+
+void close_gpios(gpio_t **gpios)
+{
+    for(int i=0;i<GPIO_COUNT;i++)
+    {
+        gpio_close(gpios[i]);
+        gpio_free(gpios[i]);
+    }
+    free(gpios);
+}
+
 int main(void) {
-    gpio_t *gpio_sw1, *gpio_d4;
     bool value = false;
+    gpio_t **gpios;
+    int line_numbers[GPIO_COUNT] = {SW1,SW2,SW3,SW4,D1,D2,D3,D4};
+    int directions[GPIO_COUNT] = {GPIO_DIR_IN,GPIO_DIR_IN,GPIO_DIR_IN,GPIO_DIR_IN,GPIO_DIR_OUT,GPIO_DIR_OUT,GPIO_DIR_OUT,GPIO_DIR_OUT};
 
-    gpio_sw1 = gpio_new();
-    gpio_d4 = gpio_new();
-
-    /* Open GPIO /dev/gpiochip0 line 12 with output direction */
-    if (gpio_open(gpio_d4, GPIO, D4, GPIO_DIR_OUT) < 0) {
-        fprintf(stderr, "gpio_open(): %s\n", gpio_errmsg(gpio_d4));
-        exit(1);
-    }
-
-    if (gpio_open(gpio_sw1, GPIO, SW1, GPIO_DIR_IN) < 0) {
-        fprintf(stderr, "gpio_open(): %s\n", gpio_errmsg(gpio_sw1));
-        exit(1);
-    }
+    init_gpios(gpios,line_numbers,directions);
 
     while(1)
     {
-        if (gpio_read(gpio_sw1, &value) < 0) {
-            fprintf(stderr, "gpio_read(): %s\n", gpio_errmsg(gpio_sw1));
+        if (gpio_read(gpios[0], &value) < 0) {
+            fprintf(stderr, "gpio_read(): %s\n", gpio_errmsg(gpios[0]));
             exit(1);
         }
-        if (gpio_write(gpio_d4, value) < 0) {
-            fprintf(stderr, "gpio_write(): %s\n", gpio_errmsg(gpio_d4));
+        if (gpio_write(gpios[7], value) < 0) {
+            fprintf(stderr, "gpio_write(): %s\n", gpio_errmsg(gpios[0]));
             exit(1);
         }
     }
 
-    gpio_close(gpio_sw1);
-    gpio_close(gpio_d4);
-
-    gpio_free(gpio_sw1);
-    gpio_free(gpio_d4);
+    close_gpios(gpios);
 
     return 0;
 }
