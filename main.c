@@ -15,6 +15,17 @@
 #define SW4 25
 #define GPIO_COUNT 8
 
+typedef enum gpio_order_e {
+    SW1_pos = 0,
+    SW2_pos,
+    SW3_pos,
+    SW4_pos,
+    D1_pos,
+    D2_pos,
+    D3_pos,
+    D4_pos
+} gpio_order_e;
+
 gpio_t* create_and_open(int line,int direction)
 {
     gpio_t *gpio;
@@ -46,21 +57,52 @@ void close_gpios(gpio_t **gpios)
     free(gpios);
 }
 
+void init_line_numbers(int line_numbers[GPIO_COUNT])
+{
+    line_numbers[SW1_pos] = SW1;
+    line_numbers[SW2_pos] = SW2;
+    line_numbers[SW3_pos] = SW3;
+    line_numbers[SW4_pos] = SW4;
+    line_numbers[D1_pos] = D1;
+    line_numbers[D2_pos] = D2;
+    line_numbers[D3_pos] = D3;
+    line_numbers[D4_pos] = D4;
+}
+
+void init_directions(int directions[GPIO_COUNT])
+{
+    directions[SW1_pos] = GPIO_DIR_IN;
+    directions[SW2_pos] = GPIO_DIR_IN;
+    directions[SW3_pos] = GPIO_DIR_IN;
+    directions[SW4_pos] = GPIO_DIR_IN;
+    directions[D1_pos] = GPIO_DIR_OUT;
+    directions[D2_pos] = GPIO_DIR_OUT;
+    directions[D3_pos] = GPIO_DIR_OUT;
+    directions[D4_pos] = GPIO_DIR_OUT;
+}
+
+void init_arrrays(int line_numbers[GPIO_COUNT],int directions[GPIO_COUNT])
+{
+    init_line_numbers(line_numbers);
+    init_directions(directions);
+}
+
 int main(void) {
     bool value = false;
     gpio_t **gpios;
-    int line_numbers[GPIO_COUNT] = {SW1,SW2,SW3,SW4,D1,D2,D3,D4};
-    int directions[GPIO_COUNT] = {GPIO_DIR_IN,GPIO_DIR_IN,GPIO_DIR_IN,GPIO_DIR_IN,GPIO_DIR_OUT,GPIO_DIR_OUT,GPIO_DIR_OUT,GPIO_DIR_OUT};
+    int line_numbers[GPIO_COUNT];
+    int directions[GPIO_COUNT];
 
+    init_arrrays(line_numbers,directions);
     init_gpios(gpios,line_numbers,directions);
 
     while(1)
     {
-        if (gpio_read(gpios[0], &value) < 0) {
+        if (gpio_read(gpios[SW1_pos], &value) < 0) {
             fprintf(stderr, "gpio_read(): %s\n", gpio_errmsg(gpios[0]));
             exit(1);
         }
-        if (gpio_write(gpios[7], value) < 0) {
+        if (gpio_write(gpios[D4_pos], value) < 0) {
             fprintf(stderr, "gpio_write(): %s\n", gpio_errmsg(gpios[0]));
             exit(1);
         }
