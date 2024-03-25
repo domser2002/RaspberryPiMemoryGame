@@ -33,7 +33,7 @@ gpio_t* create_and_open(int line,int direction)
     if(gpio_open(gpio,GPIO,line,direction) < 0)
     {
         fprintf(stderr,"gpio_open(): %s\n", gpio_errmsg(gpio));
-        exit(1);
+        exit(EXIT_FAILURE);
     }
     return gpio;
 }
@@ -87,8 +87,35 @@ void init_arrrays(int line_numbers[GPIO_COUNT],int directions[GPIO_COUNT])
     init_directions(directions);
 }
 
+bool read_from_gpio(gpio_t *gpio)
+{
+    bool value;
+    if (gpio_read(gpio, &value) < 0) {
+        fprintf(stderr, "gpio_read(): %s\n", gpio_errmsg(gpio));
+        exit(EXIT_FAILURE);
+    }
+    return value;
+}
+
+void write_to_gpio(gpio_t *gpio,bool value)
+{
+    if (gpio_write(gpio, value) < 0) {
+        fprintf(stderr, "gpio_write(): %s\n", gpio_errmsg(gpio));
+        exit(EXIT_FAILURE);
+    }
+}
+
+void proceed_work(gpio_t **gpios)
+{
+    bool value;
+    while(1)
+    {
+        value = read_from_gpio(gpios[SW1_pos]);
+        write_to_gpio(gpios[D4_pos], value);
+    }
+}
+
 int main(void) {
-    bool value = false;
     gpio_t **gpios;
     int line_numbers[GPIO_COUNT];
     int directions[GPIO_COUNT];
@@ -96,19 +123,9 @@ int main(void) {
     init_arrrays(line_numbers,directions);
     init_gpios(gpios,line_numbers,directions);
 
-    while(1)
-    {
-        if (gpio_read(gpios[SW1_pos], &value) < 0) {
-            fprintf(stderr, "gpio_read(): %s\n", gpio_errmsg(gpios[0]));
-            exit(1);
-        }
-        if (gpio_write(gpios[D4_pos], value) < 0) {
-            fprintf(stderr, "gpio_write(): %s\n", gpio_errmsg(gpios[0]));
-            exit(1);
-        }
-    }
+    proceed_work(gpios);
 
     close_gpios(gpios);
 
-    return 0;
+    return EXIT_SUCCESS;
 }
