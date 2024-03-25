@@ -13,9 +13,16 @@
 #define SW4 25
 #include "gpio.h"
 
-gpio_t* create_and_open()
+gpio_t* create_and_open(int line,int direction)
 {
-
+    gpio_t *gpio;
+    gpio = gpio_new();
+    if(gpio_open(gpio,GPIO,line,direction) < 0)
+    {
+        fprintf(stderr,"gpio_open(): %s\n", gpio_errmsg(gpio));
+        exit(1);
+    }
+    return gpio;
 }
 
 int main(void) {
