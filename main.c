@@ -38,7 +38,7 @@ gpio_t* create_and_open(int line,int direction)
     gpio = gpio_new();
     if(gpio == NULL)
     {
-        fprintf(stderr,"gpio_new() \n");
+        fprintf(stderr,"gpio_new() error\n");
         exit(EXIT_FAILURE);
     }
     if(gpio_open(gpio,GPIO,line,direction) < 0)
@@ -134,6 +134,32 @@ void output_to_memorise(gpio_t **gpios_out,int light_time,int iterations,int cou
     }
 }
 
+void check_user_answer(int counters[GPIO_OUT_COUNT])
+{
+    bool correct = true;
+    int user_answer[GPIO_COUNT];
+    printf("Input your answer (only numbers separated with white characters)\n");
+    for(int i=0;i<GPIO_OUT_COUNT;i++)
+    {
+        if(scanf("%d",user_answer[i]) < 0)
+        {
+            fprintf(stderr,"scanf() error\n");
+            exit(EXIT_FAILURE);
+        }
+        correct = correct && (user_answer[i] == counters[i]);
+    }
+    if(correct) printf("Well done!\n");
+    else
+    {
+        printf("Incorrect! Correct answer is:\n");
+        for(int i=0;i<GPIO_OUT_COUNT;i++)
+        {
+            printf("%d ",counters[i]);
+        }
+        printf("\n");
+    }
+}
+
 void proceed_work(gpio_t **gpios_in,gpio_t **gpios_out)
 {
     int counters[GPIO_OUT_COUNT];
@@ -142,6 +168,7 @@ void proceed_work(gpio_t **gpios_in,gpio_t **gpios_out)
     int min_iterations = 30,max_iterations = 50,iterations;
     iterations = rand() % (max_iterations - min_iterations) + 1;
     output_to_memorise(gpios_out,light_time,iterations,counters);
+    check_user_answer(counters);
 }
 
 int main(void) {
