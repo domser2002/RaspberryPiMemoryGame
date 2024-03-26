@@ -164,8 +164,7 @@ void initialize_work_paremeters(gpio_t **gpios_out)
 {
     for(int i=0;i<GPIO_OUT_COUNT;i++)
     {
-        int ret = gpio_set_edge(gpios_out[i],GPIO_EDGE_RISING);
-        if(ret < 0)
+        if(gpio_set_edge(gpios_out[i],GPIO_EDGE_RISING) < 0)
         {
             fprintf(stderr, "gpio_write(): %s\n", gpio_errmsg(gpios_out[i]));
             exit(EXIT_FAILURE);
