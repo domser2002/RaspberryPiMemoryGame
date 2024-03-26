@@ -160,6 +160,19 @@ void check_user_answer(int counters[GPIO_OUT_COUNT])
     }
 }
 
+void initialize_work_paremeters(gpio_t **gpios_out)
+{
+    for(int i=0;i<GPIO_OUT_COUNT;i++)
+    {
+        int ret = gpio_set_edge(gpios_out[i],GPIO_EDGE_RISING);
+        if(ret < 0)
+        {
+            fprintf(stderr, "gpio_write(): %s\n", gpio_errmsg(gpios_out[i]));
+            exit(EXIT_FAILURE);
+        }
+    }
+}
+
 void proceed_work(gpio_t **gpios_in,gpio_t **gpios_out)
 {
     int counters[GPIO_OUT_COUNT];
