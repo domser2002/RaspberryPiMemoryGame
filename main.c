@@ -121,14 +121,9 @@ void sleep_miliseconds(int miliseconds)
     nanosleep(&sleep_time,NULL);
 }
 
-void proceed_work(gpio_t **gpios_in,gpio_t **gpios_out)
+void output_to_memorise(gpio_t **gpios_out,int light_time,int iterations,int counters[GPIO_OUT_COUNT])
 {
-    int counters[GPIO_OUT_COUNT];
-    bool value;
-    int light_time = 500;
-    int min_iterations = 30,max_iterations = 50,iterations;
     int gpio_number;
-    iterations = rand() % (max_iterations - min_iterations) + 1;
     for(int i=0;i<iterations;i++)
     {
         gpio_number = rand() % GPIO_OUT_COUNT;
@@ -137,6 +132,16 @@ void proceed_work(gpio_t **gpios_in,gpio_t **gpios_out)
         write_to_gpio(gpios_out[gpio_number], false);
         counters[gpio_number]++;
     }
+}
+
+void proceed_work(gpio_t **gpios_in,gpio_t **gpios_out)
+{
+    int counters[GPIO_OUT_COUNT];
+    bool value;
+    int light_time = 500;
+    int min_iterations = 30,max_iterations = 50,iterations;
+    iterations = rand() % (max_iterations - min_iterations) + 1;
+    output_to_memorise(gpios_out,light_time,iterations,counters);
 }
 
 int main(void) {
