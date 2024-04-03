@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <time.h>
+#include <string.h>
 #include "gpio.h"
 
 #define GPIO "dev/gpiochip0"
@@ -17,6 +18,7 @@
 #define GPIO_COUNT 8
 #define GPIO_IN_COUNT 4
 #define GPIO_OUT_COUNT 4
+#define MAX_INPUT_SIZE 100
 
 typedef enum gpio_in_order_e {
     SW1_pos = 0,
@@ -31,6 +33,18 @@ typedef enum gpio_out_order_e {
     D3_pos,
     D4_pos
 } gpio_out_order_e;
+
+typedef enum Operation {
+    GetOperation,
+    SetOperation
+} Operation;
+
+typedef enum Field {
+    MinIterationsField,
+    MaxIterationsField,
+    LightTimeField,
+    SleepTimeField
+} Field;
 
 gpio_t* create_and_open(int line,int direction)
 {
@@ -121,7 +135,7 @@ void sleep_miliseconds(int miliseconds)
     nanosleep(&sleep_time,NULL);
 }
 
-void output_to_memorise(gpio_t **gpios_out,int light_time,int iterations,int counters[GPIO_OUT_COUNT])
+void output_to_memorise(gpio_t **gpios_out,int light_time,int sleep_time,int iterations,int counters[GPIO_OUT_COUNT])
 {
     int gpio_number;
     for(int i=0;i<iterations;i++)
@@ -131,6 +145,7 @@ void output_to_memorise(gpio_t **gpios_out,int light_time,int iterations,int cou
         sleep_miliseconds(light_time);
         write_to_gpio(gpios_out[gpio_number], false);
         counters[gpio_number]++;
+        sleep_miliseconds(sleep_time);
     }
 }
 
@@ -160,8 +175,70 @@ void check_user_answer(int counters[GPIO_OUT_COUNT])
     }
 }
 
-void initialize_work_paremeters(gpio_t **gpios_out)
+bool parse_operation(char *op_name, Operation *operation)
 {
+    if(strcmp(op_name,"get") == 0)
+    {
+        *operation = GetOperation;
+        return true;
+    }
+    if(strcmp(op_name,"set") == 0)
+    {
+        *operation = SetOperation;
+        return true;
+    }
+    return false;
+}
+
+bool parse_field(char *field_name, Field *field)
+{
+    if(strcmp(field_name,"min_iterations") == 0)
+    {
+        *field = MinIterationsField;
+        return true;
+    }
+    if(strcmp(field_name,"max_iterations") == 0)
+    {
+        *field = MaxIterationsField;
+        return true;
+    }
+    if(strcmp(field_name,"light_time") == 0)
+    {
+        *field = LightTimeField;
+        return true;
+    }
+    if(strcmp(field_name,"sleep_time") == 0)
+    {
+        *field = SleepTimeField;
+        return true;
+    }
+    return false;
+}
+
+bool parse_command(char command[MAX_INPUT_SIZE], Operation *operation, Field *field, int *value)
+{
+    char *tokens[3];
+    int i=0;
+    tokens[0] = strtok(command," ");
+    while(tokens[i])
+    {
+        i++;
+        tokens[i] = strtok(NULL," ");
+    }
+    if(i != 2) return false;
+    if(!parse_operation(tokens[0],operation))
+        return false;
+    if(!parse_field(tokens[1],field))
+        return false;
+    *value = atoi(tokens[2]);
+    return true;
+}
+
+void initialize_work_paremeters(gpio_t **gpios_out, int *max_iterations, int *min_iterations, int *light_time, int *sleep_time)
+{
+    int events;
+    int timeout = 60 * 1000; //one minute
+    bool gpios_ready[GPIO_OUT_COUNT];
     for(int i=0;i<GPIO_OUT_COUNT;i++)
     {
         if(gpio_set_edge(gpios_out[i],GPIO_EDGE_RISING) < 0)
@@ -170,16 +247,49 @@ void initialize_work_paremeters(gpio_t **gpios_out)
             exit(EXIT_FAILURE);
         }
     }
+    while(1)
+    {
+        events = gpio_poll_multiple(gpios_out,GPIO_OUT_COUNT,timeout,gpios_ready);
+        if(events >= 2) 
+        {
+            printf("Do not press more than one button at once!\n");
+            continue;
+        }
+        if(events == 0 || gpios_ready[SW1_pos])
+            return;
+        if(gpios_ready[SW2_pos])
+        {
+            printf("Current configuration:\n");
+            printf("\tmin_iterations = %d,\n\tmax_iterations = %d,\n\tlight_time = %d",*min_iterations,*max_iterations,*light_time);
+        }
+        if(gpios_ready[SW3_pos])
+        {
+            Operation op;
+            Field field;
+            int value;
+            char command[MAX_INPUT_SIZE];
+            printf("Input your command:\n");
+            printf("Syntax: set/get <field> <value>\n");
+            if(scanf("%s",command) == EOF) break;
+            parse_command(command,&op,&field,&value);
+        }
+        if(gpios_ready[SW4_pos])
+        {
+            *min_iterations = 0;
+            *max_iterations = 0;
+            return;
+        }
+    }
 }
 
 void proceed_work(gpio_t **gpios_in,gpio_t **gpios_out)
 {
     int counters[GPIO_OUT_COUNT];
-    bool value;
-    int light_time = 500;
+    int light_time = 500, sleep_time=250;
     int min_iterations = 30,max_iterations = 50,iterations;
+    initialize_work_paremeters(gpios_out,&min_iterations,&max_iterations,&light_time,&sleep_time);
     iterations = rand() % (max_iterations - min_iterations) + 1;
-    output_to_memorise(gpios_out,light_time,iterations,counters);
+    output_to_memorise(gpios_out,light_time,sleep_time,iterations,counters);
     check_user_answer(counters);
 }
 
