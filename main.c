@@ -4,47 +4,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <string.h>
-#include "gpio.h"
-
-#define GPIO "dev/gpiochip0"
-#define D1 27
-#define D2 23
-#define D3 22
-#define D4 24
-#define SW1 18
-#define SW2 17
-#define SW3 10
-#define SW4 25
-#define GPIO_COUNT 8
-#define GPIO_IN_COUNT 4
-#define GPIO_OUT_COUNT 4
-#define MAX_INPUT_SIZE 100
-
-typedef enum gpio_in_order_e {
-    SW1_pos = 0,
-    SW2_pos,
-    SW3_pos,
-    SW4_pos
-} gpio_in_order_e;
-
-typedef enum gpio_out_order_e {
-    D1_pos = 0,
-    D2_pos,
-    D3_pos,
-    D4_pos
-} gpio_out_order_e;
-
-typedef enum Operation {
-    GetOperation,
-    SetOperation
-} Operation;
-
-typedef enum Field {
-    MinIterationsField,
-    MaxIterationsField,
-    LightTimeField,
-    SleepTimeField
-} Field;
+#include "common_types.h"
 
 gpio_t* create_and_open(int line,int direction)
 {
@@ -135,17 +95,18 @@ void sleep_miliseconds(int miliseconds)
     nanosleep(&sleep_time,NULL);
 }
 
-void output_to_memorise(gpio_t **gpios_out,int light_time,int sleep_time,int iterations,int counters[GPIO_OUT_COUNT])
+void output_to_memorise(gpio_t **gpios_out, game_parameters *params,int counters[GPIO_OUT_COUNT])
 {
     int gpio_number;
+    int iterations = rand() % (params->max_iterations - params->min_iterations) + 1;
     for(int i=0;i<iterations;i++)
     {
         gpio_number = rand() % GPIO_OUT_COUNT;
         write_to_gpio(gpios_out[gpio_number], true);
-        sleep_miliseconds(light_time);
+        sleep_miliseconds(params->light_time);
         write_to_gpio(gpios_out[gpio_number], false);
         counters[gpio_number]++;
-        sleep_miliseconds(sleep_time);
+        sleep_miliseconds(params->sleep_time);
     }
 }
 
@@ -215,6 +176,23 @@ bool parse_field(char *field_name, Field *field)
     return false;
 }
 
+bool parse_field_command(char *tokens[3], int last_idx, Field *field)
+{
+    if(last_idx != 1) return false;
+    if(!parse_field(tokens[1],field))
+        return false;
+    return true;
+}
+
+bool parse_field_value_command(char *tokens[3], int last_idx, Field *field, int *value)
+{
+    if(last_idx != 2) return false;
+    if(!parse_field(tokens[1],field))
+        return false;
+    *value = atoi(tokens[2]);
+    return true;
+}
+
 bool parse_command(char command[MAX_INPUT_SIZE], Operation *operation, Field *field, int *value)
 {
     char *tokens[3];
@@ -225,16 +203,117 @@ bool parse_command(char command[MAX_INPUT_SIZE], Operation *operation, Field *fi
         i++;
         tokens[i] = strtok(NULL," ");
     }
-    if(i != 2) return false;
+    if(i < 1) return false;
     if(!parse_operation(tokens[0],operation))
         return false;
-    if(!parse_field(tokens[1],field))
-        return false;
-    *value = atoi(tokens[2]);
-    return true;
+    return (operation == GetOperation)?parse_field_command(tokens,i,field):parse_field_value_command(tokens,i,field,value);
 }
 
-void initialize_work_paremeters(gpio_t **gpios_out, int *max_iterations, int *min_iterations, int *light_time, int *sleep_time)
+void get_field(Field field, game_parameters *params)
+{
+    char name[MAX_FIELDNAME_LENGTH];
+    int value;
+    switch(field)
+    {
+        case MaxIterationsField:
+            sprintf("max_iterations",name);
+            value = params->max_iterations;
+            break;
+        case MinIterationsField:
+            sprintf("min_iterations",name);
+            value = params->min_iterations;
+            break;
+        case LightTimeField:
+            sprintf("light_time",name);
+            value = params->light_time;
+            break;
+        case SleepTimeField:
+            sprintf("sleep_time",name);
+            value = params->sleep_time;
+            break;
+    }
+    printf("%s = %d\n",name,value);
+}
+
+void set_field(Field field, game_parameters *params,int value)
+{
+    switch(field)
+    {
+        case MaxIterationsField:
+            params->max_iterations = value;
+            break;
+        case MinIterationsField:
+            params->min_iterations = value;
+            break;
+        case LightTimeField:
+            params->light_time = value;
+            break;
+        case SleepTimeField:
+            params->sleep_time = value;
+            break;
+    }
+}
+
+void execute_command(Operation op, Field field, int value, game_parameters *params)
+{
+    switch (op)
+    {
+        case GetOperation:
+            get_field(field,params);
+            break;
+        case SetOperation:
+            set_field(field,params,value);
+            break;
+    }
+}
+
+void parse_and_execute_command(char command[MAX_INPUT_SIZE], game_parameters *params)
+{
+    Operation op;
+    Field field;
+    int value;
+    if(!parse_command(command,&op,&field,&value))
+    {
+        fprintf(stderr,"Failed to parse command!\n");
+        return;
+    }
+    execute_command(op,field,value,params);
+}
+
+bool parse_button_click(bool gpios_ready[GPIO_OUT_COUNT], int events, game_parameters *params)
+{
+    if(events >= 2) 
+    {
+        fprintf(stderr,"Do not press more than one button at once!\n");
+        return true;
+    }
+    if(events == 0 || gpios_ready[SW1_pos])
+        return false;
+    if(gpios_ready[SW2_pos])
+    {
+        printf("Current configuration:\n");
+        printf("\tmin_iterations = %d,\n\tmax_iterations = %d,\n\tlight_time = %d, \n\tsleep_time = %d",
+        params->min_iterations,params->max_iterations,params->light_time,params->sleep_time);
+        return true;
+    }
+    if(gpios_ready[SW3_pos])
+    {
+        char command[MAX_INPUT_SIZE];
+        printf("Input your command:\n");
+        printf("Syntax: set/get <field> <value>\n");
+        if(scanf("%s",command) == EOF) return false;
+        parse_and_execute_command(command,params);
+        return true;
+    }
+    if(gpios_ready[SW4_pos])
+    {
+        params->min_iterations = 0;
+        params->max_iterations = 0;
+        return false;
+    }
+}
+
+void initialize_work_paremeters(gpio_t **gpios_out, game_parameters *params)
 {
     int events;
     int timeout = 60 * 1000; //one minute
@@ -250,46 +329,21 @@ void initialize_work_paremeters(gpio_t **gpios_out, int *max_iterations, int *mi
     while(1)
     {
         events = gpio_poll_multiple(gpios_out,GPIO_OUT_COUNT,timeout,gpios_ready);
-        if(events >= 2) 
-        {
-            printf("Do not press more than one button at once!\n");
-            continue;
-        }
-        if(events == 0 || gpios_ready[SW1_pos])
-            return;
-        if(gpios_ready[SW2_pos])
-        {
-            printf("Current configuration:\n");
-            printf("\tmin_iterations = %d,\n\tmax_iterations = %d,\n\tlight_time = %d",*min_iterations,*max_iterations,*light_time);
-        }
-        if(gpios_ready[SW3_pos])
-        {
-            Operation op;
-            Field field;
-            int value;
-            char command[MAX_INPUT_SIZE];
-            printf("Input your command:\n");
-            printf("Syntax: set/get <field> <value>\n");
-            if(scanf("%s",command) == EOF) break;
-            parse_command(command,&op,&field,&value);
-        }
-        if(gpios_ready[SW4_pos])
-        {
-            *min_iterations = 0;
-            *max_iterations = 0;
-            return;
-        }
+        if(parse_button_click(gpios_ready,events,params)) continue;
+        return;
     }
 }
 
 void proceed_work(gpio_t **gpios_in,gpio_t **gpios_out)
 {
     int counters[GPIO_OUT_COUNT];
-    int light_time = 500, sleep_time=250;
-    int min_iterations = 30,max_iterations = 50,iterations;
-    initialize_work_paremeters(gpios_out,&min_iterations,&max_iterations,&light_time,&sleep_time);
-    iterations = rand() % (max_iterations - min_iterations) + 1;
-    output_to_memorise(gpios_out,light_time,sleep_time,iterations,counters);
+    game_parameters params;
+    params.light_time = 500;
+    params.sleep_time = 250;
+    params.min_iterations = 30;
+    params.max_iterations = 50;
+    initialize_work_paremeters(gpios_out,&params);
+    output_to_memorise(gpios_out,&params,counters);
     check_user_answer(counters);
 }
 
