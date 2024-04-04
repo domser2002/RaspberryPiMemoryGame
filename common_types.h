@@ -14,6 +14,10 @@
 #define GPIO_OUT_COUNT 4
 #define MAX_INPUT_SIZE 100
 #define MAX_FIELDNAME_LENGTH 20
+#define DEFAULT_LIGHT_TIME 500
+#define DEFAULT_SLEEP_TIME 250
+#define DEFAULT_MIN_ITERATIONS 10
+#define DEFAULT_MAX_ITERATIONS 30
 
 typedef enum gpio_in_order_e {
     SW1_pos = 0,

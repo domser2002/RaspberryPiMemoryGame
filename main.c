@@ -115,14 +115,14 @@ void check_user_answer(int counters[GPIO_OUT_COUNT])
     bool correct = true;
     int user_answer[GPIO_COUNT];
     printf("Input your answer (only numbers separated with white characters)\n");
-    for(int i=0;i<GPIO_OUT_COUNT;i++)
+    for(int i=0;i<GPIO_OUT_COUNT,correct;i++)
     {
         if(scanf("%d",user_answer[i]) < 0)
         {
             fprintf(stderr,"scanf() error\n");
             exit(EXIT_FAILURE);
         }
-        correct = correct && (user_answer[i] == counters[i]);
+        correct = (user_answer[i] == counters[i]);
     }
     if(correct) printf("Well done!\n");
     else
@@ -301,12 +301,14 @@ bool parse_button_click(bool gpios_ready[GPIO_OUT_COUNT], int events, game_param
         char command[MAX_INPUT_SIZE];
         printf("Input your command:\n");
         printf("Syntax: set/get <field> <value>\n");
+        printf("Input your command: ");
         if(scanf("%s",command) == EOF) return false;
         parse_and_execute_command(command,params);
         return true;
     }
     if(gpios_ready[SW4_pos])
     {
+        printf("Exiting\n");
         params->min_iterations = 0;
         params->max_iterations = 0;
         return false;
@@ -328,6 +330,7 @@ void initialize_work_paremeters(gpio_t **gpios_out, game_parameters *params)
     }
     while(1)
     {
+        printf("SW1 - start game\nSW2 - print current configuration\nSW3 - open command interface\nSW4 - exit\n");
         events = gpio_poll_multiple(gpios_out,GPIO_OUT_COUNT,timeout,gpios_ready);
         if(parse_button_click(gpios_ready,events,params)) continue;
         return;
@@ -338,10 +341,10 @@ void proceed_work(gpio_t **gpios_in,gpio_t **gpios_out)
 {
     int counters[GPIO_OUT_COUNT];
     game_parameters params;
-    params.light_time = 500;
-    params.sleep_time = 250;
-    params.min_iterations = 30;
-    params.max_iterations = 50;
+    params.light_time = DEFAULT_LIGHT_TIME;
+    params.sleep_time = DEFAULT_SLEEP_TIME;
+    params.min_iterations = DEFAULT_MIN_ITERATIONS;
+    params.max_iterations = DEFAULT_MAX_ITERATIONS;
     initialize_work_paremeters(gpios_out,&params);
     output_to_memorise(gpios_out,&params,counters);
     check_user_answer(counters);
