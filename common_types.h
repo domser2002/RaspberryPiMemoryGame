@@ -1,6 +1,6 @@
 #include "gpio.h"
 
-#define GPIO "dev/gpiochip0"
+#define GPIO "/dev/gpiochip0"
 #define D1 27
 #define D2 23
 #define D3 22

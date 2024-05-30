@@ -8,6 +8,7 @@
 
 gpio_t* create_and_open(int line,int direction)
 {
+    printf("Create and open\n");
     gpio_t *gpio;
     gpio = gpio_new();
     if(gpio == NULL)
@@ -23,38 +24,42 @@ gpio_t* create_and_open(int line,int direction)
     return gpio;
 }
 
-void init_gpios(gpio_t **gpios_in, gpio_t **gpios_out, int in_line_numbers[GPIO_IN_COUNT], int out_line_numbers[GPIO_OUT_COUNT])
+void init_gpios(gpio_t ***gpios_in, gpio_t ***gpios_out, int in_line_numbers[GPIO_IN_COUNT], int out_line_numbers[GPIO_OUT_COUNT])
 {
-    gpios_in = (gpio_t**)malloc(GPIO_IN_COUNT*sizeof(gpio_t*));
-    gpios_out = (gpio_t**)malloc(GPIO_OUT_COUNT*sizeof(gpio_t*));
+    printf("Init gpios\n");
+    *gpios_in = (gpio_t**)malloc(GPIO_IN_COUNT*sizeof(gpio_t*));
+    *gpios_out = (gpio_t**)malloc(GPIO_OUT_COUNT*sizeof(gpio_t*));
+    printf("%p\n",*gpios_in);
     for(int i=0;i<GPIO_IN_COUNT;i++)
     {
-        gpios_in[i] = create_and_open(in_line_numbers[i],GPIO_DIR_IN);
+        (*gpios_in)[i] = create_and_open(in_line_numbers[i],GPIO_DIR_IN);
     }
     for(int i=0;i<GPIO_OUT_COUNT;i++)
     {
-        gpios_out[i] = create_and_open(out_line_numbers[i],GPIO_DIR_OUT);
+        (*gpios_out)[i] = create_and_open(out_line_numbers[i],GPIO_DIR_OUT);
     }
+    printf("%p\n",*gpios_in);
 }
 
-void close_gpios(gpio_t **gpios_in, gpio_t **gpios_out)
+void close_gpios(gpio_t ***gpios_in, gpio_t ***gpios_out)
 {
     for(int i=0;i<GPIO_IN_COUNT;i++)
     {
-        gpio_close(gpios_in[i]);
-        gpio_free(gpios_in[i]);
+        gpio_close((*gpios_in)[i]);
+        gpio_free((*gpios_in)[i]);
     }
-    free(gpios_in);
+    free(*gpios_in);
     for(int i=0;i<GPIO_OUT_COUNT;i++)
     {
-        gpio_close(gpios_out[i]);
-        gpio_free(gpios_out[i]);
+        gpio_close((*gpios_out)[i]);
+        gpio_free((*gpios_out)[i]);
     }
-    free(gpios_out);
+    free(*gpios_out);
 }
 
 void init_out_line_numbers(int out_line_numbers[GPIO_OUT_COUNT])
 {
+    printf("Init out line numbers\n");
     out_line_numbers[D1_pos] = D1;
     out_line_numbers[D2_pos] = D2;
     out_line_numbers[D3_pos] = D3;
@@ -63,6 +68,7 @@ void init_out_line_numbers(int out_line_numbers[GPIO_OUT_COUNT])
 
 void init_in_line_numbers(int in_line_numbers[GPIO_IN_COUNT])
 {
+    printf("Init in line numbers\n");
     in_line_numbers[SW1_pos] = SW1;
     in_line_numbers[SW2_pos] = SW2;
     in_line_numbers[SW3_pos] = SW3;
@@ -95,16 +101,19 @@ void sleep_miliseconds(int miliseconds)
     nanosleep(&sleep_time,NULL);
 }
 
-void output_to_memorise(gpio_t **gpios_out, game_parameters *params,int counters[GPIO_OUT_COUNT])
+void output_to_memorise(gpio_t ***gpios_out, game_parameters *params,int counters[GPIO_OUT_COUNT])
 {
+    srand(time(NULL));
+    printf("output to memorise\n");
     int gpio_number;
-    int iterations = rand() % (params->max_iterations - params->min_iterations) + 1;
+    int iterations = (params->max_iterations - params->min_iterations) == 0 ? params->max_iterations : params->min_iterations + rand() % (params->max_iterations + 1 - params->min_iterations);
+    printf("before loop\n");
     for(int i=0;i<iterations;i++)
     {
         gpio_number = rand() % GPIO_OUT_COUNT;
-        write_to_gpio(gpios_out[gpio_number], true);
+        write_to_gpio((*gpios_out)[gpio_number], true);
         sleep_miliseconds(params->light_time);
-        write_to_gpio(gpios_out[gpio_number], false);
+        write_to_gpio((*gpios_out)[gpio_number], false);
         counters[gpio_number]++;
         sleep_miliseconds(params->sleep_time);
     }
@@ -113,17 +122,21 @@ void output_to_memorise(gpio_t **gpios_out, game_parameters *params,int counters
 void check_user_answer(int counters[GPIO_OUT_COUNT])
 {
     bool correct = true;
-    int user_answer[GPIO_COUNT];
+    int user_answer[GPIO_OUT_COUNT];
+    char *tokens[GPIO_OUT_COUNT];
+    char line[MAX_INPUT_SIZE];
     printf("Input your answer (only numbers separated with white characters)\n");
-    for(int i=0;i<GPIO_OUT_COUNT,correct;i++)
+    if(fgets(line,MAX_INPUT_SIZE,stdin) == NULL) return;
+    char delim[] = {' ','\n'};
+    int i=0;
+    tokens[0] = strtok(line,delim);
+    while(tokens[i])
     {
-        if(scanf("%d",user_answer[i]) < 0)
-        {
-            fprintf(stderr,"scanf() error\n");
-            exit(EXIT_FAILURE);
-        }
-        correct = (user_answer[i] == counters[i]);
+        user_answer[i] = atoi(tokens[i]);
+        i++;
+        tokens[i] = strtok(NULL,delim);
     }
+    correct = (user_answer[0] == counters[0]);
     if(correct) printf("Well done!\n");
     else
     {
@@ -138,8 +151,10 @@ void check_user_answer(int counters[GPIO_OUT_COUNT])
 
 bool parse_operation(char *op_name, Operation *operation)
 {
+    printf("parsing %s\n",op_name);
     if(strcmp(op_name,"get") == 0)
     {
+        printf("get detected\n");
         *operation = GetOperation;
         return true;
     }
@@ -153,8 +168,10 @@ bool parse_operation(char *op_name, Operation *operation)
 
 bool parse_field(char *field_name, Field *field)
 {
+    printf("parsing %s\n",field_name);
     if(strcmp(field_name,"min_iterations") == 0)
     {
+        printf("min iterations field\n");
         *field = MinIterationsField;
         return true;
     }
@@ -176,15 +193,16 @@ bool parse_field(char *field_name, Field *field)
     return false;
 }
 
-bool parse_field_command(char *tokens[3], int last_idx, Field *field)
+bool parse_field_command(char *tokens[4], int last_idx, Field *field)
 {
+    printf("parsing field command\n");
     if(last_idx != 1) return false;
     if(!parse_field(tokens[1],field))
         return false;
     return true;
 }
 
-bool parse_field_value_command(char *tokens[3], int last_idx, Field *field, int *value)
+bool parse_field_value_command(char *tokens[4], int last_idx, Field *field, int *value)
 {
     if(last_idx != 2) return false;
     if(!parse_field(tokens[1],field))
@@ -195,43 +213,54 @@ bool parse_field_value_command(char *tokens[3], int last_idx, Field *field, int 
 
 bool parse_command(char command[MAX_INPUT_SIZE], Operation *operation, Field *field, int *value)
 {
-    char *tokens[3];
+    printf("parse command\n");
+    printf("parsing %s\n",command);
+    char *tokens[4];
+    char delim[] = {' ','\n'};
     int i=0;
-    tokens[0] = strtok(command," ");
+    tokens[0] = strtok(command,delim);
     while(tokens[i])
     {
+        printf("'%s'\n",tokens[i]);
+        printf("parse tokens\n");
         i++;
-        tokens[i] = strtok(NULL," ");
+        tokens[i] = strtok(NULL,delim);
     }
     if(i < 1) return false;
     if(!parse_operation(tokens[0],operation))
         return false;
-    return (operation == GetOperation)?parse_field_command(tokens,i,field):parse_field_value_command(tokens,i,field,value);
+    return (*operation == GetOperation)?parse_field_command(tokens,i-1,field):parse_field_value_command(tokens,i-1,field,value);
 }
 
 void get_field(Field field, game_parameters *params)
 {
+    printf("get field\n");
     char name[MAX_FIELDNAME_LENGTH];
     int value;
+    printf("before switch\n");
     switch(field)
     {
         case MaxIterationsField:
-            sprintf("max_iterations",name);
+            sprintf(name,"max_iterations");
             value = params->max_iterations;
             break;
         case MinIterationsField:
-            sprintf("min_iterations",name);
+            printf("min iterations field\n");
+            sprintf(name,"min_iterations");
+            printf("after sprintf\n");
             value = params->min_iterations;
+            printf("after assignment\n");
             break;
         case LightTimeField:
-            sprintf("light_time",name);
+            sprintf(name,"light_time");
             value = params->light_time;
             break;
         case SleepTimeField:
-            sprintf("sleep_time",name);
+            sprintf(name,"sleep_time");
             value = params->sleep_time;
             break;
     }
+    printf("after switch\n");
     printf("%s = %d\n",name,value);
 }
 
@@ -292,7 +321,7 @@ bool parse_button_click(bool gpios_ready[GPIO_OUT_COUNT], int events, game_param
     if(gpios_ready[SW2_pos])
     {
         printf("Current configuration:\n");
-        printf("\tmin_iterations = %d,\n\tmax_iterations = %d,\n\tlight_time = %d, \n\tsleep_time = %d",
+        printf("\tmin_iterations = %d,\n\tmax_iterations = %d,\n\tlight_time = %d, \n\tsleep_time = %d\n",
         params->min_iterations,params->max_iterations,params->light_time,params->sleep_time);
         return true;
     }
@@ -302,7 +331,7 @@ bool parse_button_click(bool gpios_ready[GPIO_OUT_COUNT], int events, game_param
         printf("Input your command:\n");
         printf("Syntax: set/get <field> <value>\n");
         printf("Input your command: ");
-        if(scanf("%s",command) == EOF) return false;
+        if(fgets(command,MAX_INPUT_SIZE,stdin) == NULL) return false;
         parse_and_execute_command(command,params);
         return true;
     }
@@ -315,53 +344,87 @@ bool parse_button_click(bool gpios_ready[GPIO_OUT_COUNT], int events, game_param
     }
 }
 
-void initialize_work_paremeters(gpio_t **gpios_out, game_parameters *params)
+void initialize_work_paremeters(gpio_t ***gpios_in, game_parameters *params)
 {
+    printf("Init work parameters\n");
     int events;
     int timeout = 60 * 1000; //one minute
-    bool gpios_ready[GPIO_OUT_COUNT];
-    for(int i=0;i<GPIO_OUT_COUNT;i++)
+    bool gpios_ready[GPIO_IN_COUNT];
+    gpio_edge_t edges[GPIO_IN_COUNT];
+    uint64_t last_event;
+    printf("before loop\n");
+    for(int i=0;i<GPIO_IN_COUNT;i++)
     {
-        if(gpio_set_edge(gpios_out[i],GPIO_EDGE_RISING) < 0)
+        edges[i] = GPIO_EDGE_RISING;
+        printf("in loop %d\n",i);
+        printf("%p\n",*gpios_in);
+        printf("%p\n",(*gpios_in)[i]);
+        if(gpio_set_edge((*gpios_in)[i],edges[i]) < 0)
         {
-            fprintf(stderr, "gpio_write(): %s\n", gpio_errmsg(gpios_out[i]));
+            fprintf(stderr, "gpio_set_edge(): %s\n", gpio_errmsg((*gpios_in)[i]));
             exit(EXIT_FAILURE);
         }
     }
+    printf("Edges set\n");
     while(1)
     {
+        uint64_t event;
+        bool loop = true;
         printf("SW1 - start game\nSW2 - print current configuration\nSW3 - open command interface\nSW4 - exit\n");
-        events = gpio_poll_multiple(gpios_out,GPIO_OUT_COUNT,timeout,gpios_ready);
+        while(loop) 
+        {
+            events = gpio_poll_multiple(*gpios_in,GPIO_IN_COUNT,timeout,gpios_ready);
+            for(int i=0;i<GPIO_IN_COUNT;i++)
+            {
+                if(gpios_ready[i])
+                {
+                    if(gpio_read_event((*gpios_in)[i],&edges[i],&event) < 0)
+                    {
+                        fprintf(stderr, "gpio_read_event(): %s\n", gpio_errmsg((*gpios_in)[i]));
+                        exit(EXIT_FAILURE);
+                    }  
+                    if(event - last_event > 100 * 1000 * 1000) { loop = false; last_event = event; }
+                }
+            }
+        }
         if(parse_button_click(gpios_ready,events,params)) continue;
         return;
     }
 }
 
-void proceed_work(gpio_t **gpios_in,gpio_t **gpios_out)
+void proceed_work(gpio_t ***gpios_in,gpio_t ***gpios_out)
 {
-    int counters[GPIO_OUT_COUNT];
+    printf("Proceed work\n");
+    printf("%p\n",gpios_in);
+    int counters[GPIO_OUT_COUNT] = {};
     game_parameters params;
     params.light_time = DEFAULT_LIGHT_TIME;
     params.sleep_time = DEFAULT_SLEEP_TIME;
     params.min_iterations = DEFAULT_MIN_ITERATIONS;
     params.max_iterations = DEFAULT_MAX_ITERATIONS;
-    initialize_work_paremeters(gpios_out,&params);
+    initialize_work_paremeters(gpios_in,&params);
+    if(params.max_iterations <= params.min_iterations) return;
     output_to_memorise(gpios_out,&params,counters);
     check_user_answer(counters);
 }
 
 int main(void) {
-    gpio_t **gpios_in, **gpios_out;
+    gpio_t ***gpios_in, ***gpios_out;
+    gpios_in = (gpio_t***)malloc(sizeof(gpio_t**));
+    gpios_out = (gpio_t***)malloc(sizeof(gpio_t**));
     int in_line_numbers[GPIO_IN_COUNT];
     int out_line_numbers[GPIO_OUT_COUNT];
 
     init_out_line_numbers(out_line_numbers);
     init_in_line_numbers(in_line_numbers);
     init_gpios(gpios_in, gpios_out, in_line_numbers, out_line_numbers);
-
+    printf("%p\n",*gpios_in);
     proceed_work(gpios_in,gpios_out);
 
     close_gpios(gpios_in,gpios_out);
+
+    free(gpios_in);
+    free(gpios_out);
 
     return EXIT_SUCCESS;
 }

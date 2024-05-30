@@ -1,4 +1,3 @@
-BRPATH=/home/domser/studia/semestr6/linsw/BR
 OBJS := main.o
 main: $(OBJS)
 	$(CC) -o main $(CFLAGS) $(LDFLAGS) $(OBJS) -lperiphery
